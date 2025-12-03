@@ -1,0 +1,25 @@
+   # On envoie des flottants (0.2), pas des entiers (127)
+        command = {
+            "T": 1,
+            "L": round(left, 3),
+            "R": round(right, 3)
+        }
+        
+        data = json.dumps(command) + '\n'
+        
+        try:
+            self.serial.write(data.encode('utf-8'))
+            # Log pour vérifier
+            self.get_logger().info(f"Cmd: {data.strip()}")
+        except Exception as e:
+            pass
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = UgvDriver()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
