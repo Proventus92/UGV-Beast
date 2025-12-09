@@ -3,10 +3,13 @@
 <package format="3">
   <name>my_robot_cartographer</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Package de localisation Cartographer</description>
   <maintainer email="jetson@todo.todo">jetson</maintainer>
   <license>TODO: License declaration</license>
 
+  <depend>rclpy</depend>
+  <depend>cartographer_ros_msgs</depend>
+  <depend>geometry_msgs</depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
