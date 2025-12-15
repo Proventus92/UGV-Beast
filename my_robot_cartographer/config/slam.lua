@@ -11,7 +11,7 @@ options = {
   provide_odom_frame = true,
   publish_frame_projected_to_2d = false,
   
-  -- MODIFICATION : On reactive l'odometrie pour empecher la derive a l'infini
+  -- En SLAM, l'odometrie est utile pour la stabilite
   use_odometry = true,
   use_nav_sat = false,
   use_landmarks = false,
@@ -36,7 +36,7 @@ options = {
 MAP_BUILDER.use_trajectory_builder_2d = true
 
 -- Configuration Lidar + IMU
-TRAJECTORY_BUILDER_2D.use_imu_data = true -- IMU important pour stabiliser la rotation
+TRAJECTORY_BUILDER_2D.use_imu_data = true
 
 -- Scan Matching
 TRAJECTORY_BUILDER_2D.num_accumulated_range_data = 1
@@ -48,13 +48,10 @@ TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.linear_search_window = 
 TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.angular_search_window = math.rad(20.)
 
 -- Poids du Scan Matcher
--- On garde la translation a 20 pour que le Lidar reste maitre
 TRAJECTORY_BUILDER_2D.ceres_scan_matcher.translation_weight = 20.
 TRAJECTORY_BUILDER_2D.ceres_scan_matcher.rotation_weight = 40.
 
--- MODIFICATION : Poids de l'Odometrie
--- On remet un poids faible (10) pour "ancrer" le robot quand il ne bouge pas
--- Cela empeche la derive vers l'infini
+-- Poids de l'odometrie (Ancrage)
 POSE_GRAPH.optimization_problem.odometry_translation_weight = 1e1
 POSE_GRAPH.optimization_problem.odometry_rotation_weight = 1e1
 
@@ -63,8 +60,8 @@ TRAJECTORY_BUILDER_2D.motion_filter.max_time_seconds = 5.
 TRAJECTORY_BUILDER_2D.motion_filter.max_distance_meters = 0.1
 TRAJECTORY_BUILDER_2D.motion_filter.max_angle_radians = math.rad(0.2)
 
--- Global Localization
-POSE_GRAPH.optimize_every_n_nodes = 20
+-- POSE GRAPH (Optimisation frequente pour le SLAM)
+POSE_GRAPH.optimize_every_n_nodes = 30
 POSE_GRAPH.constraint_builder.min_score = 0.65
 POSE_GRAPH.constraint_builder.global_localization_min_score = 0.7
 
