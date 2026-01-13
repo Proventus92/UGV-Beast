@@ -14,7 +14,7 @@ class OakDNode(Node):
     def __init__(self):
         super().__init__('oakd_publisher')
         
-        # --- CORRECTION : Définition des FPS ---
+        # --- CORRECTION : DÃ©finition des FPS ---
         self.declare_parameter('fps', 10.0)
         self.fps = self.get_parameter('fps').value
         # ---------------------------------------
@@ -47,8 +47,8 @@ class OakDNode(Node):
              stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.DEFAULT)
 
         # 2. CONFIANCE ELEVEE : On accepte plus de points (0-255). 
-        # 200 est le défaut. 245 remplit les trous (pieds de chaises).
-        stereo.initialConfig.setConfidenceThreshold(245)
+        # 200 est le dÃ©faut. 245 remplit les trous (pieds de chaises).
+        stereo.initialConfig.setConfidenceThreshold(150)
         
         # 3. Rectification et Subpixel
         stereo.setLeftRightCheck(True) 
@@ -71,7 +71,7 @@ class OakDNode(Node):
         try:
             self.device = dai.Device(self.pipeline)
             self.q_pcl = self.device.getOutputQueue(name="pcl", maxSize=4, blocking=False)
-            self.get_logger().info("OAK-D : Mode Haute Sensibilité (Pieds de chaise)")
+            self.get_logger().info("OAK-D : Mode Haute SensibilitÃ© (Pieds de chaise)")
         except Exception as e:
             self.get_logger().error(f"Failed to start OAK-D: {e}")
             return
@@ -98,10 +98,10 @@ class OakDNode(Node):
             mask_x = (points[:, 0] < 0.45) & (points[:, 0] > -0.45)
 
             # 3. Y (Hauteur) - ON RELACHE LA CONTRAINTE
-            # Caméra à 11cm (0.11). 
-            # On accepte tout ce qui est plus haut que 13cm sous la caméra (Y < 0.13).
+            # CamÃ©ra Ã  11cm (0.11). 
+            # On accepte tout ce qui est plus haut que 13cm sous la camÃ©ra (Y < 0.13).
             # Cela veut dire qu'on VA VOIR un peu de sol si le sol n'est pas plat.
-            # C'est nécessaire pour être sûr de voir le bas du pied de chaise.
+            # C'est nÃ©cessaire pour Ãªtre sÃ»r de voir le bas du pied de chaise.
             mask_y = (points[:, 1] < 0.13) & (points[:, 1] > -0.10)
             
             mask = mask_z & mask_x & mask_y
@@ -128,4 +128,5 @@ def main(args=None):
         rclpy.shutdown()
 
 if __name__ == '__main__':
+
     main()
