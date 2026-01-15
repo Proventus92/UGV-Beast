@@ -13,7 +13,7 @@ class OakDNode(Node):
     def __init__(self):
         super().__init__('oakd_publisher')
         
-        self.declare_parameter('fps', 10.0)
+        self.declare_parameter('fps', 30.0)
         self.fps = self.get_parameter('fps').value
         
         # --- PARAMETRES DE FILTRAGE (CRITIQUES) ---
@@ -153,3 +153,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
