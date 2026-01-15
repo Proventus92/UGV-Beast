@@ -8,6 +8,7 @@ import sensor_msgs_py.point_cloud2 as pc2
 from std_msgs.msg import Header
 import depthai as dai
 import numpy as np
+import math
 
 class OakDNode(Node):
     def __init__(self):
@@ -16,22 +17,17 @@ class OakDNode(Node):
         self.declare_parameter('fps', 30.0)
         self.fps = self.get_parameter('fps').value
         
-        # --- PARAMETRES DE FILTRAGE (CRITIQUES) ---
-        # 1. Distance MIN : 50cm. 
-        # Le robot est "aveugle" en dessous. Nav2 DOIT l'empêcher d'approcher autant.
-        self.z_min = 0.50   
-        self.z_max = 4.0    # On voit jusqu'à 4m
-        
-        # 2. Largeur de vue (Couloir)
-        self.x_limit = 1.0  # On regarde large (1m de chaque côté) pour bien contourner
-        
-        # 3. Hauteur (Sol/Plafond)
-        self.y_min = -0.10  # On ignore le sol
-        self.y_max = 0.50   # On regarde les obstacles jusqu'à 50cm de haut (ou plus selon tes besoins)
+        # --- PARAMETRES DE FILTRAGE (COMMUNS) ---
+        # On définit ici la "boîte" stricte que tu veux garder
+        self.z_min = 0.15   # Distance min (m)
+        self.z_max = 3.0    # Distance max (m)
+        self.x_limit = 0.45 # Largeur (m) du couloir (+/- 0.45m autour du centre)
+        self.y_min = -0.10  # Hauteur min (par rapport cam) - coupe sol
+        self.y_max = 0.13   # Hauteur max (par rapport cam) - coupe plafond
         
         self.pipeline = dai.Pipeline()
         
-        # --- INIT CAMERA (Mono ou RGB selon dispo) ---
+        # --- INIT CAMERA ---
         if hasattr(dai.node, 'MonoCamera'):
             monoLeft = self.pipeline.create(dai.node.MonoCamera)
             monoRight = self.pipeline.create(dai.node.MonoCamera)
@@ -48,7 +44,7 @@ class OakDNode(Node):
 
         stereo = self.pipeline.create(dai.node.StereoDepth)
         stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
-        stereo.initialConfig.setConfidenceThreshold(200)
+        stereo.initialConfig.setConfidenceThreshold(150)
         stereo.setLeftRightCheck(True)
         stereo.setSubpixel(True)
         stereo.setDepthAlign(dai.CameraBoardSocket.CAM_B)
@@ -66,13 +62,14 @@ class OakDNode(Node):
         try:
             self.device = dai.Device(self.pipeline)
             self.q_pcl = self.device.getOutputQueue(name="pcl", maxSize=4, blocking=False)
-            self.get_logger().info(f"OAK-D : Filtre Z_MIN={self.z_min}m (Zone Morte)")
+            self.get_logger().info("OAK-D : Mode Filtrage Unifié (Scan = Nuage)")
         except Exception as e:
             self.get_logger().error(f"Failed: {e}")
             return
 
         self.scan_pub = self.create_publisher(LaserScan, '/oak/scan', 10)
         self.pcl_pub = self.create_publisher(PointCloud2, '/oak/points', 10)
+        
         self.timer = self.create_timer(1.0/self.fps, self.timer_callback)
 
     def timer_callback(self):
@@ -83,36 +80,52 @@ class OakDNode(Node):
             points = in_pcl.getPoints() 
             points = np.array(points).reshape(-1, 3)
             points = points / 1000.0 
+            
             if len(points) == 0: return
 
-            # --- FILTRAGE STRICT ---
-            # On enlève tout ce qui est < 50cm (Bruit/Sol proche)
+            # ==========================================================
+            # ETAPE 1 : FILTRAGE UNIQUE (Le "Découpage")
+            # ==========================================================
+            # On applique les filtres stricts immédiatement.
+            # Tout ce qui ne passe pas ce filtre n'existera ni pour Rviz, ni pour Nav2.
+
+            # 1. Z (Profondeur)
             mask_z = (points[:, 2] > self.z_min) & (points[:, 2] < self.z_max)
+            # 2. X (Largeur - Couloir)
             mask_x = (points[:, 0] < self.x_limit) & (points[:, 0] > -self.x_limit)
+            # 3. Y (Hauteur - Coupe sol/plafond)
             mask_y = (points[:, 1] < self.y_max) & (points[:, 1] > self.y_min)
             
-            filtered_points = points[mask_z & mask_x & mask_y]
+            # Combinaison des masques
+            final_mask = mask_z & mask_x & mask_y
+            filtered_points = points[final_mask]
 
+            # Préparation du Header commun
             header_opt = Header()
             header_opt.stamp = self.get_clock().now().to_msg()
             header_opt.frame_id = "oak_rgb_camera_optical_frame"
 
-            # 1. Publish PointCloud (Visuel)
+            # ==========================================================
+            # ETAPE 2 : PUBLICATION POINTCLOUD (Visuel)
+            # ==========================================================
             if len(filtered_points) > 0:
                 pc2_msg = pc2.create_cloud_xyz32(header_opt, filtered_points)
                 self.pcl_pub.publish(pc2_msg)
 
-            # 2. Publish LaserScan (Pour Nav2 - Obstacles)
+            # ==========================================================
+            # ETAPE 3 : PUBLICATION LASERSCAN (Nav2)
+            # ==========================================================
+            # On utilise EXCLUSIVEMENT 'filtered_points' calculé au-dessus
+            
             scan = LaserScan()
             scan.header.stamp = header_opt.stamp
-            scan.header.frame_id = "base_link" # Scan horizontal robot
+            scan.header.frame_id = "base_link" 
             
-            # Champ de vision ~70°
-            scan.angle_min = -0.65 
-            scan.angle_max = 0.65 
+            # Configuration du scan
+            scan.angle_min = -0.65  # ~ -37 degrés
+            scan.angle_max = 0.65   # ~ +37 degrés
             scan.angle_increment = 0.01 
-            # RANGE MIN DOIT CORRESPONDRE AU FILTRE Z
-            scan.range_min = self.z_min 
+            scan.range_min = self.z_min
             scan.range_max = self.z_max
             scan.time_increment = 0.0
             
@@ -120,20 +133,30 @@ class OakDNode(Node):
             ranges = [float('inf')] * num_readings
             
             if len(filtered_points) > 0:
-                # Rotation repère: Z_cam -> X_robot, -X_cam -> Y_robot
+                # TRANSFORMATION : Camera Optical -> Robot Base
+                # X_robot = Z_camera
+                # Y_robot = -X_camera
+                
+                # Note : On prend filtered_points ici !
                 robot_x = filtered_points[:, 2]      
                 robot_y = -filtered_points[:, 0]     
                 
                 angles = np.arctan2(robot_y, robot_x)
                 distances = np.sqrt(robot_x**2 + robot_y**2)
                 
+                # Remplissage optimal avec NumPy (plus rapide qu'une boucle for simple)
+                # On calcule les indices correspondants aux angles
                 indices = ((angles - scan.angle_min) / scan.angle_increment).astype(int)
-                valid_mask = (indices >= 0) & (indices < num_readings)
                 
-                valid_indices = indices[valid_mask]
-                valid_distances = distances[valid_mask]
+                # Filtrage des indices valides (dans le champ de vision du scan)
+                valid_indices_mask = (indices >= 0) & (indices < num_readings)
                 
-                # On garde la distance min pour chaque angle
+                # On ne traite que les points valides
+                valid_indices = indices[valid_indices_mask]
+                valid_distances = distances[valid_indices_mask]
+                
+                # Mise à jour des ranges : on garde la distance minimale pour chaque index
+                # (Approche itérative simple pour être sûr de prendre le min)
                 for idx, dist in zip(valid_indices, valid_distances):
                     if dist < ranges[idx]:
                         ranges[idx] = float(dist)
@@ -144,7 +167,8 @@ class OakDNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = OakDNode()
-    try: rclpy.spin(node)
+    try:
+        rclpy.spin(node)
     except KeyboardInterrupt: pass
     finally:
         try: node.destroy_node()
@@ -153,4 +177,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
