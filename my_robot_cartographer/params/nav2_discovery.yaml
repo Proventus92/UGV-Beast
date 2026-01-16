@@ -224,7 +224,8 @@ global_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan
+        # MODIFICATION ICI : Ajout de oak_scan pour la prise en compte dans la carte globale
+        observation_sources: scan oak_scan
         scan:
           topic: /scan
           max_obstacle_height: 2.0
@@ -235,6 +236,18 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+        
+        # AJOUT DU BLOC OAK SCAN (Meme configuration que local_costmap)
+        oak_scan:
+          topic: /oak/scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_range: 3.5
+          obstacle_range: 2.5
+          inf_is_valid: true
+
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
