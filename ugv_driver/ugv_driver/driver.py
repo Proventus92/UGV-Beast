@@ -14,7 +14,7 @@ class UgvDriver(Node):
     def __init__(self):
         super().__init__('ugv_driver')
         
-        self.declare_parameter('port', '/dev/ttyTHS1')
+        self.declare_parameter('port', '/dev/ttyACM0')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('publish_tf', True) 
         
@@ -105,7 +105,7 @@ class UgvDriver(Node):
                             # Publication (Cartographer s'en servira pour corriger)
                             imu_msg.angular_velocity.z = filtered_gz * deg_to_rad 
                             
-                            # Fake acceleration parfaite
+                            # Fake acceleration
                             imu_msg.linear_acceleration.x = 0.0
                             imu_msg.linear_acceleration.y = 0.0
                             imu_msg.linear_acceleration.z = 9.81
@@ -128,9 +128,7 @@ class UgvDriver(Node):
             self.angular_cmd = 0.0
             self.send_motor_command(0.0, 0.0)
 
-        # --- RETOUR A L'ODOMETRIE FLUIDE (ROUES) ---
-        # On utilise la commande (self.angular_cmd) et PAS l'IMU pour le calcul de position.
-        # Ca elimine 100% des sauts visuels.
+         # On utilise la commande (self.angular_cmd) et PAS l'IMU pour le calcul de position.
         delta_x = (self.linear_cmd * math.cos(self.th)) * dt
         delta_y = (self.linear_cmd * math.sin(self.th)) * dt
         delta_th = (self.angular_cmd * self.ANGULAR_FACTOR) * dt 
