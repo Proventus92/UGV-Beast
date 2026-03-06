@@ -1,0 +1,29 @@
+edition = "2023";
+
+message RadioUpdateHeader {
+    string uint_id = 1;
+    uint32 expected_update_period = 2;
+    bool rapid_pli = 3;
+}
+
+message EnvironmentStatus {
+    RadioUpdateHeader header = 1;
+    int32 noise_floor = 2;
+}
+
+message Links {
+    RadioUpdateHeader header = 1;
+    Link payload = 2;
+}
+
+message Link {
+    string destination_id = 1;
+    double src_link_quality_snr = 2;
+    uint32 src_link_quality_percent = 3;
+    double dst_link_quality_snr = 4;
+    uint32 dst_link_quality_percent = 5;
+    double range = 6;
+    uint32 range_confidence = 7;
+    uint32 src_link_rssi = 8;
+    uint32 dst_link_rssi = 9;
+}
